@@ -1,6 +1,6 @@
 {
-  "name": "@n4tzz/n4lyx",
-  "version": "2.7.16",
+  "name": "n4lyx",
+  "version": "3.0.0",
   "description": "N4lyx - WhatsApp Web API Library powered by N4tzzOfficial",
   "keywords": [
     "n4lyx",
@@ -15,7 +15,7 @@
   "homepage": "https://github.com/N4tzzOfficial/n4lyx",
   "repository": {
     "type": "git",
-    "url": "https://github.com/N4tzzOfficial/n4lyx.git"
+    "url": "git+https://github.com/N4tzzOfficial/n4lyx.git"
   },
   "license": "MIT",
   "author": "N4tzzOfficial",
@@ -111,5 +111,11 @@
   "packageManager": "yarn@1.22.19",
   "engines": {
     "node": ">=20.0.0"
+  },
+  "directories": {
+    "lib": "lib"
+  },
+  "bugs": {
+    "url": "https://github.com/N4tzzOfficial/n4lyx/issues"
   }
 }
