@@ -1072,5 +1072,5 @@ MIT — lihat [LICENSE](LICENSE).
 ---
 
 <div align="center">
-<sub>n4lyx — built by N4tzz</sub>
+<sub>n4lyx — built by N4tzzOfficial | Channel: https://whatsapp.com/channel/0029VbAVYIx5PO0z9LqImz3U</sub>
 </div>
