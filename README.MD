@@ -1,7 +1,5 @@
 <div align="center">
 
-<br/>
-
 ```
 ███╗   ██╗ ██╗  ██╗ ██╗      ██╗   ██╗ ██╗  ██╗
 ████╗  ██║ ██║  ██║ ██║      ╚██╗ ██╔╝ ╚██╗██╔╝
@@ -11,22 +9,27 @@
 ╚═╝  ╚═══╝      ╚═╝ ╚══════╝    ╚═╝    ╚═╝  ╚═╝
 ```
 
-**WhatsApp Web API. Multi-device. No bloat.**
+**WhatsApp Web API · Multi-device · No bloat.**
 
-[![npm](https://img.shields.io/npm/v/n4lyx?style=flat-square&color=000&labelColor=111&label=npm)](https://npmjs.com/package/n4lyx)
-[![downloads](https://img.shields.io/npm/dm/n4lyx?style=flat-square&color=000&labelColor=111)](https://npmjs.com/package/n4lyx)
-[![license](https://img.shields.io/badge/license-MIT-000?style=flat-square&labelColor=111)](LICENSE)
-[![node](https://img.shields.io/badge/node-%3E%3D20-000?style=flat-square&labelColor=111)](package.json)
+[![npm](https://img.shields.io/npm/v/n4lyx?style=flat-square&color=25D366&labelColor=111&label=npm)](https://npmjs.com/package/n4lyx)
+[![downloads](https://img.shields.io/npm/dm/n4lyx?style=flat-square&color=25D366&labelColor=111)](https://npmjs.com/package/n4lyx)
+[![license](https://img.shields.io/badge/license-MIT-25D366?style=flat-square&labelColor=111)](LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D20-25D366?style=flat-square&labelColor=111)](package.json)
 
 </div>
 
 ---
 
-## What is this
+## Apa ini?
 
-n4lyx adalah WhatsApp Web API library untuk Node.js. Multi-device, proper `@lid → @pn` resolution, dan punya fitur eksklusif yang nggak ada di library lain — tag all, group status v2, shorthand methods bawaan.
+**n4lyx** adalah WhatsApp Web API library untuk Node.js — multi-device, proper `@lid → @pn` resolution, dan punya fitur-fitur eksklusif yang nggak ada di library lain.
 
-> Bukan afiliasi dengan WhatsApp Inc. Jangan spam. Jangan abuse. Kamu yang tanggung jawab.
+- ⚡ **Tag all** — mention semua member/admin/non-admin otomatis
+- 📸 **Group Status V2** — post story langsung ke group
+- 🎯 **Shorthand methods** — nggak perlu susun object manual
+- 🔧 **Bug-fixed** — semua edge case umum udah dipatch
+
+> **Disclaimer:** Bukan afiliasi dengan WhatsApp Inc. Jangan spam. Jangan abuse. Konsekuensi akun banned adalah tanggung jawab kamu sendiri.
 
 ---
 
@@ -48,6 +51,8 @@ import makeWASocket from 'n4lyx'
 
 ## Quick Start
 
+Ini contoh bot paling minimal yang bisa jalan — terima pesan, balas "pong", auto-reconnect kalau putus.
+
 ```js
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('n4lyx')
 const { Boom } = require('@hapi/boom')
@@ -60,15 +65,19 @@ async function start() {
     printQRInTerminal: true
   })
 
+  // Handle koneksi
   sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
     if (connection === 'close') {
-      const code = new Boom(lastDisconnect?.error)?.output?.statusCode
-      if (code !== DisconnectReason.loggedOut) start()
+      const shouldReconnect =
+        new Boom(lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut
+      if (shouldReconnect) start()
     }
   })
 
+  // Simpan credentials
   sock.ev.on('creds.update', saveCreds)
 
+  // Terima pesan
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const msg = messages[0]
     if (!msg.message) return
@@ -81,9 +90,11 @@ start()
 
 ---
 
-## Auth
+## Login
 
 ### QR Code
+
+Scan QR dari terminal — paling cepat untuk testing.
 
 ```js
 const sock = makeWASocket({ printQRInTerminal: true })
@@ -91,16 +102,18 @@ const sock = makeWASocket({ printQRInTerminal: true })
 
 ### Pairing Code
 
+Cocok kalau nggak bisa scan QR (server headless, dll).
+
 ```js
 const sock = makeWASocket({ printQRInTerminal: false })
 
 if (!sock.authState.creds.registered) {
   const code = await sock.requestPairingCode('628XXXXXXXXX')
-  console.log('Code:', code)
+  console.log('Kode pairing:', code) // → misalnya: N4LX-1234
 }
 ```
 
-Custom pairing code (tepat 8 karakter):
+Custom kode (tepat 8 karakter):
 
 ```js
 const code = await sock.requestPairingCode('628XXXXXXXXX', 'N4LYX001')
@@ -108,21 +121,23 @@ const code = await sock.requestPairingCode('628XXXXXXXXX', 'N4LYX001')
 
 ### Simpan Session
 
+Session disimpan ke folder `auth/`. Kalau file-nya ada, next run langsung connect tanpa QR lagi.
+
 ```js
 const { state, saveCreds } = await useMultiFileAuthState('auth')
 const sock = makeWASocket({ auth: state })
 sock.ev.on('creds.update', saveCreds)
 ```
 
-> Untuk production, simpan credentials ke database (PostgreSQL, MongoDB, Redis) — bukan ke disk.
+> **Untuk production:** simpan credentials ke database (PostgreSQL / MongoDB / Redis), bukan ke disk. Disk bisa corrupt, database tidak.
 
 ---
 
-## Config
+## Config Penting
 
 ### Cache Group Metadata
 
-Wajib kalau bot kamu banyak handle group. Ngurangin API call berulang.
+Wajib kalau bot kamu aktif di banyak group. Ini ngurangin request ke WA API secara signifikan.
 
 ```js
 const NodeCache = require('node-cache')
@@ -132,225 +147,197 @@ const sock = makeWASocket({
   cachedGroupMetadata: async (jid) => groupCache.get(jid)
 })
 
+// Update cache kalau ada perubahan di group
 sock.ev.on('groups.update', async ([e]) => {
   groupCache.set(e.id, await sock.groupMetadata(e.id))
 })
-
 sock.ev.on('group-participants.update', async (e) => {
   groupCache.set(e.id, await sock.groupMetadata(e.id))
 })
 ```
 
-### Message Store
-
-Dibutuhkan untuk message retry dan dekripsi poll vote.
-
-```js
-const sock = makeWASocket({
-  getMessage: async (key) => await getMessageFromDB(key)
-})
-```
-
 ### Background Mode
 
-Terima pesan tanpa kelihatan online.
+Bot nggak kelihatan online tapi tetap terima pesan.
 
 ```js
 const sock = makeWASocket({ markOnlineOnConnect: false })
 ```
 
-### Full History Sync
+### Message Store (untuk Poll & Retry)
+
+Diperlukan untuk dekripsi poll vote dan message retry.
 
 ```js
 const sock = makeWASocket({
-  browser: ['Mac', 'Desktop', '1.0'],
-  syncFullHistory: true
+  getMessage: async (key) => await getMessageFromDB(key)
+  // implementasi getMessageFromDB sesuai DB kamu
 })
-```
-
----
-
-## In-Memory Store
-
-n4lyx tidak ship store default. Ada basic in-memory store untuk dev/testing — jangan dipakai production.
-
-```js
-const { makeInMemoryStore } = require('n4lyx')
-
-const store = makeInMemoryStore({})
-store.readFromFile('./store.json')
-setInterval(() => store.writeToFile('./store.json'), 10_000)
-
-const sock = makeWASocket({})
-store.bind(sock.ev)
 ```
 
 ---
 
 ## Kirim Pesan
 
-```js
-await sock.sendMessage(jid, content, options?)
-```
+Semua pengiriman pesan lewat satu method: `sock.sendMessage(jid, content, options?)`.
 
-### Teks
+### Teks biasa
 
 ```js
-await sock.sendMessage(jid, { text: 'halo' })
+await sock.sendMessage(jid, { text: 'Halo!' })
 ```
 
 ### Reply / Quote
 
 ```js
-await sock.sendMessage(jid, { text: 'halo' }, { quoted: message })
+await sock.sendMessage(jid, { text: 'Oke siap' }, { quoted: message })
 ```
 
-### Mention
+### Mention user
 
 ```js
 await sock.sendMessage(jid, {
-  text: '@628XXXXXXXXX',
+  text: 'Hei @628XXXXXXXXX, cek ini',
   mentions: ['628XXXXXXXXX@s.whatsapp.net']
 })
 ```
 
-### Tag All ⚡ n4lyx exclusive
+### Tag All ⚡
 
-Auto-mention semua member group. Fetch participant list otomatis.
+Fitur eksklusif n4lyx. Auto-fetch participant list lalu mention semua sekaligus.
 
 ```js
 // Tag semua member
 await sock.sendMessage(jid, {
-  text: '@everyone dengerin dulu',
+  text: '📢 Pengumuman penting buat semua!',
   tagAll: true
 })
 
 // Tag admin aja
 await sock.sendMessage(jid, {
-  text: 'khusus admin',
+  text: '🔔 Info untuk para admin',
   tagAll: true,
   tagAllScope: 'admins'
 })
 
 // Tag non-admin aja
 await sock.sendMessage(jid, {
-  text: 'khusus member',
+  text: '👋 Hei member!',
   tagAll: true,
   tagAllScope: 'non_admins'
 })
 ```
 
-`tagAllScope`: `'all'` (default) · `'admins'` · `'non_admins'`
-
-Atau ambil list JID-nya langsung:
+Atau ambil list JID-nya dulu kalau mau diproses manual:
 
 ```js
 const jids = await sock.groupTagAll(groupJid, 'all')
-// → ['628XXX@s.whatsapp.net', ...]
+// → ['628xxx@s.whatsapp.net', '628yyy@s.whatsapp.net', ...]
 ```
 
 ### Media
 
-Support `Buffer`, `{ url: '...' }`, atau `{ stream: Stream }`.
+Semua media support: `Buffer`, `{ url: '...' }`, atau `{ stream: Stream }`.
 
 ```js
 // Gambar
-await sock.sendMessage(jid, { image: { url: './foto.png' }, caption: 'caption' })
+await sock.sendMessage(jid, {
+  image: { url: './foto.jpg' },
+  caption: 'Caption foto'
+})
 
 // Video
-await sock.sendMessage(jid, { video: { url: './video.mp4' }, caption: 'caption' })
+await sock.sendMessage(jid, {
+  video: { url: './video.mp4' },
+  caption: 'Caption video'
+})
 
-// Audio
-await sock.sendMessage(jid, { audio: { url: './audio.ogg' }, mimetype: 'audio/mp4' })
+// Audio biasa
+await sock.sendMessage(jid, {
+  audio: { url: './audio.mp3' },
+  mimetype: 'audio/mp4'
+})
+
+// Voice note (PTT)
+await sock.sendMessage(jid, {
+  audio: fs.readFileSync('./voice.ogg'),
+  mimetype: 'audio/ogg; codecs=opus',
+  ptt: true
+})
 
 // Sticker
-await sock.sendMessage(jid, { sticker: fs.readFileSync('./sticker.webp') })
+await sock.sendMessage(jid, {
+  sticker: fs.readFileSync('./sticker.webp')
+})
 
 // Dokumen
 await sock.sendMessage(jid, {
-  document: { url: './file.pdf' },
+  document: { url: './laporan.pdf' },
   mimetype: 'application/pdf',
-  fileName: 'file.pdf'
+  fileName: 'laporan.pdf'
 })
 ```
 
 ### Link Preview
 
-Install dulu:
+Install `link-preview-js` dulu, lalu kirim teks dengan URL biasa — preview auto-generate.
 
 ```bash
 npm i link-preview-js
 ```
 
 ```js
-await sock.sendMessage(jid, { text: 'cek ini: https://npmjs.com/package/n4lyx' })
+await sock.sendMessage(jid, {
+  text: 'Cek library ini: https://npmjs.com/package/n4lyx'
+})
 ```
 
 ---
 
-## Helper Methods ⚡ n4lyx exclusive
+## Shorthand Methods ⚡
 
-Shorthand methods langsung di `sock` — nggak perlu susun object content manual.
+Biar nggak perlu susun object setiap kali, n4lyx punya shorthand methods langsung di `sock`.
 
----
-
-### `sock.sendImage(jid, image, caption?, options?)`
+### Gambar & Video
 
 ```js
-await sock.sendImage(jid, buffer, 'ini caption')
+// Gambar
+await sock.sendImage(jid, buffer, 'Caption opsional')
 await sock.sendImage(jid, { url: './foto.jpg' })
+
+// Video
+await sock.sendVideo(jid, buffer, 'Caption opsional')
 ```
 
----
-
-### `sock.sendVideo(jid, video, caption?, options?)`
+### Audio
 
 ```js
-await sock.sendVideo(jid, buffer, 'ini video')
+await sock.sendAudio(jid, buffer)         // audio biasa
+await sock.sendAudio(jid, buffer, true)   // voice note / PTT
+await sock.sendAudioPTT(jid, buffer)      // alias PTT
+await sock.sendVoiceNote(jid, buffer)     // alias voice note
 ```
 
----
-
-### `sock.sendAudio(jid, audio, isPtt?, options?)`
+### Dokumen
 
 ```js
-await sock.sendAudio(jid, buffer)           // audio biasa
-await sock.sendAudio(jid, buffer, true)     // voice note / PTT
+await sock.sendDocument(jid, buffer, 'laporan.pdf', 'application/pdf', 'Ini file-nya')
 ```
 
----
-
-### `sock.sendDocument(jid, document, fileName, mimetype?, caption?, options?)`
+### GIF & Video Note
 
 ```js
-await sock.sendDocument(jid, buffer, 'laporan.pdf', 'application/pdf', 'ini file nya')
-```
-
----
-
-### `sock.sendGIF(jid, video, caption?, options?)`
-
-```js
+// GIF animasi
 await sock.sendGIF(jid, gifBuffer, 'wkwk')
-await sock.sendGIF(jid, gifBuffer)
-```
 
----
-
-### `sock.sendPTV(jid, video, options?)`
-
-Circular video note (kayak voice note tapi video).
-
-```js
+// Circular video note (kayak voice note tapi video)
 await sock.sendPTV(jid, videoBuffer)
-await sock.sendPTV(jid, videoBuffer, { quoted: m })
+await sock.sendPTV(jid, videoBuffer, { quoted: m }) // dengan quote
 ```
 
----
+### View Once
 
-### `sock.sendViewOnce(jid, content, options?)`
-
-View-once — media hilang setelah dilihat sekali.
+Media otomatis hilang setelah dilihat sekali.
 
 ```js
 await sock.sendViewOnce(jid, { image: buffer })
@@ -358,161 +345,203 @@ await sock.sendViewOnce(jid, { video: buffer }, { quoted: m })
 await sock.sendViewOnce(jid, { audio: buffer, mimetype: 'audio/mp4' })
 ```
 
----
-
-### `sock.sendSticker(jid, sticker, options?)` / `sock.sendStickerFromUrl(jid, url, options?)`
+### Sticker
 
 ```js
-await sock.sendMessage(jid, { sticker: buffer })
+// Dari Buffer
+await sock.sendStickerFromBuffer(jid, buffer)
+
+// Dari URL langsung
 await sock.sendStickerFromUrl(jid, 'https://example.com/sticker.webp')
-```
 
----
-
-### `sock.sendStickerWithMetadata(jid, sticker, metadata?, options?)`
-
-Kirim sticker dengan pack name, publisher, kategori.
-
-```js
+// Dengan metadata pack
 await sock.sendStickerWithMetadata(jid, buffer, {
   packName: 'Pack Gue',
   packPublisher: 'N4tzz',
   categories: ['😂']
 })
-```
 
----
-
-### `sock.sendStickerPack(jid, stickers[], packName, packPublisher, options?)`
-
-Kirim banyak sticker sekaligus (max 30, auto delay).
-
-```js
+// Kirim banyak sticker sekaligus (max 30, ada auto-delay)
 await sock.sendStickerPack(jid, [buf1, buf2, buf3], 'Pack Gue', 'N4tzz')
 ```
 
----
+### Album
 
-### `sock.sendAlbum(jid, items[], options?)`
-
-Album foto/video yang bisa di-swipe (max 10 item, mix image + video).
+Kumpulan foto/video yang bisa di-swipe (max 10 item, bisa mix image + video).
 
 ```js
 await sock.sendAlbum(jid, [
   { image: buf1, caption: 'Foto 1' },
-  { image: buf2 },
+  { image: buf2, caption: 'Foto 2' },
   { video: buf3, caption: 'Video' }
 ])
 ```
 
----
-
-### `sock.sendPoll(jid, question, choices[], cfg?)`
+### Poll
 
 ```js
-// Multiple choice
+// Pilih lebih dari satu
 await sock.sendPoll(jid, 'Bahasa favorit?', ['JavaScript', 'Python', 'Go'])
 
-// Single select
+// Pilih satu saja
 await sock.sendPoll(jid, 'Setuju?', ['Ya', 'Tidak'], { selectableCount: 1 })
-
-// Community announcement group
-await sock.sendPoll(jid, 'Vote', ['A', 'B'], { toAnnouncementGroup: true })
 ```
 
----
-
-### `sock.sendLocation(jid, latitude, longitude, name?, options?)`
+### Lokasi
 
 ```js
+// Lokasi statis
 await sock.sendLocation(jid, -7.797068, 110.370529, 'Yogyakarta')
-await sock.sendLocation(jid, -6.2, 106.8)
-```
 
----
-
-### `sock.sendLiveLocation(jid, lat, lng, accuracy?, duration?, options?)`
-
-```js
+// Live location
 await sock.sendLiveLocation(jid, -7.79, 110.37, 10, 300)
+// parameter: lat, lng, accuracy (meter), duration (detik)
 ```
 
----
-
-### `sock.sendContact(jid, contacts, options?)`
+### Kontak
 
 ```js
 // Single
-await sock.sendContact(jid, { fullName: 'Budi', phoneNumber: '+62812xxxxxxx' })
+await sock.sendContact(jid, {
+  fullName: 'Budi Santoso',
+  phoneNumber: '+62812xxxxxxx',
+  org: 'Acme Corp' // opsional
+})
 
-// Dengan org
-await sock.sendContact(jid, { fullName: 'Sari', phoneNumber: '+62813xxxxxxx', org: 'Acme Corp' })
-
-// Multiple
+// Multiple sekaligus
 await sock.sendContact(jid, [
   { fullName: 'Budi', phoneNumber: '+62812xxxxxxx' },
   { fullName: 'Sari', phoneNumber: '+62813xxxxxxx' }
 ])
-
-// Raw vCard manual
-await sock.sendContact(jid, { fullName: 'Custom', vcard: 'BEGIN:VCARD\n...\nEND:VCARD' })
 ```
 
----
-
-### `sock.sendEvent(jid, eventData, options?)`
+### Event & Jadwal Call
 
 ```js
+// WhatsApp Event
 await sock.sendEvent(jid, {
-  name: 'Rapat Tim',
-  description: 'Sync mingguan',
-  startTime: Date.now() + 3_600_000,    // ms timestamp, wajib
-  endTime: Date.now() + 7_200_000,      // opsional
-  location: 'Zoom',                     // opsional
-  joinLink: 'https://zoom.us/j/xxx'     // opsional
+  name: 'Rapat Mingguan',
+  description: 'Sync tim setiap Senin',
+  startTime: Date.now() + 3_600_000,   // 1 jam dari sekarang
+  endTime: Date.now() + 7_200_000,     // 2 jam dari sekarang
+  location: 'Google Meet',
+  joinLink: 'https://meet.google.com/xxx'
 })
+
+// Jadwalkan panggilan
+await sock.sendScheduledCall(jid, 'Catch-up session', Date.now() + 86_400_000)        // video call (default)
+await sock.sendScheduledCall(jid, 'Voice call', Date.now() + 3_600_000, 2)            // voice call
 ```
 
----
-
-### `sock.sendScheduledCall(jid, title, time, callType?, options?)`
+### Reply & Mention
 
 ```js
-await sock.sendScheduledCall(jid, 'Catch-up', Date.now() + 86_400_000)       // video (default)
-await sock.sendScheduledCall(jid, 'Voice call', Date.now() + 3_600_000, 2)   // voice
+// Reply cepat
+await sock.sendReply(jid, 'Oke siap!', m)
+
+// Reply dengan media
+await sock.sendMediaReply(jid, { image: buffer, caption: 'ini' }, m)
+
+// Reply + mention sekaligus
+await sock.sendQuotedText(jid, 'Hayo @kamu', m, ['628xxx@s.whatsapp.net'])
+
+// Teks + mention
+await sock.sendTextWithMentions(jid, 'Halo @A dan @B', [jidA, jidB])
+
+// Tag all shorthand
+await sock.sendTagAll(jid, '📢 Pengumuman untuk semua')
+await sock.sendTagAll(jid, '🔔 Khusus admin', 'admins')
+await sock.sendTagAll(jid, '👋 Hei member', 'non_admins')
+
+// Tag all + mention
+await sock.sendMentionAll(jid, 'Hei semua!')
 ```
 
-`callType`: `1` = video · `2` = voice
+### Invite Group
 
----
-
-### `sock.sendGroupInvite(jid, groupJid, options?)`
-
-Kirim invite group sebagai pesan card (bukan plain link).
+Kirim invite sebagai card (bukan plain link).
 
 ```js
 await sock.sendGroupInvite(jid, '120363xxx@g.us')
 ```
 
----
+### Typing Indicator
 
-### `sock.groupStatusV2(jid, content)`
+```js
+// Typing 3 detik lalu berhenti
+await sock.sendTyping(jid)
 
-Post status/story di dalam group (muncul kayak story).
+// Recording 2 detik
+await sock.sendTyping(jid, 2000, 'recording')
+
+// Kirim pesan dengan typing dulu
+await sock.sendWithTyping(jid, { text: 'Halo!' })
+await sock.sendWithTyping(jid, { text: 'Halo!' }, {}, 2000) // typing 2 detik
+```
+
+### Broadcast & Multi-Message
+
+```js
+// Kirim ke banyak JID (auto deduplicate, ada delay antar kirim)
+const results = await sock.broadcastMessage(
+  ['628xxx@s.whatsapp.net', '628yyy@s.whatsapp.net'],
+  { text: 'Pengumuman penting!' },
+  { delayMs: 1000 }
+)
+// results: [{ jid, success, msg? }, ...]
+
+// Broadcast ke semua group yang diikuti
+await sock.broadcastToGroups([groupJid1, groupJid2], { text: 'Halo semua group!' })
+
+// Kirim array pesan berurutan ke satu JID
+await sock.sendMultipleMessages(jid, [
+  { text: 'Pesan 1' },
+  { text: 'Pesan 2' },
+  { image: buffer, caption: 'Foto' }
+], 800) // delay 800ms antar pesan
+```
+
+### Status / Story
+
+```js
+// Status pribadi
+await sock.sendStatus({ text: 'Pagi semua! ☀️', backgroundColor: '#128C7E' })
+await sock.sendStatus({ image: buffer, caption: 'Foto hari ini' })
+await sock.sendStatus({ video: buffer })
+
+// Batasi siapa yang bisa lihat
+await sock.sendStatus({ text: 'Khusus kamu' }, ['628xxx@s.whatsapp.net'])
+```
+
+### Group Status V2 ⚡
+
+Post story langsung di dalam group — muncul kayak story WhatsApp tapi di group.
 
 ```js
 // Teks
-await sock.groupStatusV2('120363xxx@g.us', { text: 'GM!', backgroundColor: '#25D366' })
-await sock.groupStatusV2('120363xxx@g.us', { text: 'Halo', backgroundColor: '#FF6B6B', font: 1 })
+await sock.groupStatusV2('120363xxx@g.us', {
+  text: 'GM semua! 🌅',
+  backgroundColor: '#25D366'
+})
+
+// Teks dengan font custom
+await sock.groupStatusV2('120363xxx@g.us', {
+  text: 'Selamat ulang tahun! 🎉',
+  backgroundColor: '#FF6B6B',
+  font: 1
+})
 
 // Gambar
-await sock.groupStatusV2('120363xxx@g.us', { image: buffer, caption: 'lihat ini!' })
+await sock.groupStatusV2('120363xxx@g.us', {
+  image: buffer,
+  caption: 'Foto kegiatan hari ini'
+})
 
 // Video
-await sock.groupStatusV2('120363xxx@g.us', { video: buffer, caption: 'tonton ini' })
-
-// Audio
-await sock.groupStatusV2('120363xxx@g.us', { audio: buffer, mimetype: 'audio/mp4' })
+await sock.groupStatusV2('120363xxx@g.us', {
+  video: buffer,
+  caption: 'Tonton ini!'
+})
 
 // Sticker
 await sock.groupStatusV2('120363xxx@g.us', { sticker: buffer })
@@ -520,157 +549,37 @@ await sock.groupStatusV2('120363xxx@g.us', { sticker: buffer })
 
 ---
 
-### `sock.sendStatus(content, statusJidList?)`
-
-Post story/status pribadi ke `status@broadcast`.
+## Edit, Delete, React
 
 ```js
-await sock.sendStatus({ text: 'Pagi!', backgroundColor: '#128C7E' })
-await sock.sendStatus({ image: buffer, caption: 'foto hari ini' })
-await sock.sendStatus({ video: buffer })
+const sent = await sock.sendMessage(jid, { text: 'Ada typo nih' })
 
-// Batasi siapa yang lihat
-await sock.sendStatus({ text: 'cuma buat kamu' }, ['628xxx@s.whatsapp.net'])
-```
+// Edit pesan
+await sock.editMessage(jid, sent.key, 'Sudah diperbaiki')
 
----
-
-### `sock.sendReply(jid, text, quotedMessage, options?)`
-
-```js
-await sock.sendReply(jid, 'oke siap', m)
-```
-
----
-
-### `sock.sendMediaReply(jid, content, quotedMessage, options?)`
-
-```js
-await sock.sendMediaReply(jid, { image: buffer, caption: 'ini' }, m)
-```
-
----
-
-### `sock.sendQuotedText(jid, text, quotedMessage, mentions?, options?)`
-
-Reply + mention sekaligus.
-
-```js
-await sock.sendQuotedText(jid, 'hayo @kamu', m, ['628xxx@s.whatsapp.net'])
-```
-
----
-
-### `sock.sendTagAll(jid, text, scope?, options?)`
-
-Shorthand tag all + kirim pesan sekaligus.
-
-```js
-await sock.sendTagAll(jid, 'dengerin dulu ya')
-await sock.sendTagAll(jid, 'hei admin', 'admins')
-await sock.sendTagAll(jid, 'hei member', 'non_admins')
-```
-
----
-
-### `sock.sendTextWithMentions(jid, text, mentionJids[], options?)`
-
-```js
-await sock.sendTextWithMentions(jid, 'halo @A dan @B', [jidA, jidB])
-```
-
----
-
-### `sock.sendTyping(jid, duration?, type?)`
-
-Kirim indikator typing, auto berhenti setelah durasi.
-
-```js
-await sock.sendTyping(jid)                         // composing 3 detik
-await sock.sendTyping(jid, 2000, 'recording')      // recording 2 detik
-```
-
----
-
-### `sock.sendWithTyping(jid, content, options?, typingMs?)`
-
-Kirim pesan dengan typing indicator dulu sebelumnya.
-
-```js
-await sock.sendWithTyping(jid, { text: 'halo' })
-await sock.sendWithTyping(jid, { text: 'halo' }, {}, 2000)
-```
-
----
-
-### `sock.broadcastMessage(jids[], content, options?)`
-
-Kirim pesan yang sama ke banyak JID. Auto delay antar kirim (default 500ms).
-
-```js
-const results = await sock.broadcastMessage(
-  ['628xxx@s.whatsapp.net', '628yyy@s.whatsapp.net'],
-  { text: 'pengumuman penting' },
-  { delayMs: 1000 }
-)
-
-// results: [{ jid, success, msg? }, ...]
-```
-
----
-
-### `sock.sendMultipleMessages(jid, contents[], delayMs?)`
-
-Kirim array pesan berurutan ke satu JID.
-
-```js
-await sock.sendMultipleMessages(jid, [
-  { text: 'pesan 1' },
-  { text: 'pesan 2' },
-  { image: buffer }
-], 800)
-```
-
----
-
-## Edit & Delete
-
-```js
-const sent = await sock.sendMessage(jid, { text: 'typo' })
-
-// Edit
-await sock.editMessage(jid, sent.key, 'sudah diperbaiki')
-// atau raw:
-await sock.sendMessage(jid, { text: 'sudah diperbaiki', edit: sent.key })
-
-// Delete for everyone
+// Hapus untuk semua
 await sock.deleteMessage(jid, sent.key)
-// atau raw:
-await sock.sendMessage(jid, { delete: sent.key })
-```
 
----
-
-## Pin, Keep, React
-
-```js
 // Pin pesan
-await sock.pinMessage(jid, m.key)            // 24 jam (default)
-await sock.pinMessage(jid, m.key, 604800)    // 7 hari
-await sock.pinMessage(jid, m.key, 2592000)   // 30 hari
-await sock.pinMessage(jid, m.key, 0)         // unpin
+await sock.pinMessage(jid, m.key)              // 24 jam
+await sock.pinMessage(jid, m.key, 604800)      // 7 hari
+await sock.pinMessage(jid, m.key, 0)           // unpin
 
-// Keep / bookmark
-await sock.keepMessage(jid, m.key)           // keep
-await sock.keepMessage(jid, m.key, false)    // unkeep
+// Bookmark / keep
+await sock.keepMessage(jid, m.key)             // keep
+await sock.keepMessage(jid, m.key, false)      // unkeep
+
+// Bintang / star
+await sock.starMessage(jid, m.key, true)       // bintangin
+await sock.unstarMessage(jid, m.key)           // hapus bintang
 
 // React
 await sock.reactMessage(jid, m.key, '❤️')
-await sock.reactMessage(jid, m.key, '')      // hapus reaksi
+await sock.reactMessage(jid, m.key, '')        // hapus reaksi
 
 // Forward
 await sock.forwardMessage(jid, m)
-await sock.forwardMessage(jid, m, true)      // paksa mark as forwarded
+await sock.forwardWithComment(jid, m, 'Check ini!')  // forward + komentar
 ```
 
 ---
@@ -678,8 +587,6 @@ await sock.forwardMessage(jid, m, true)      // paksa mark as forwarded
 ## Chat Management
 
 ```js
-const lastMsg = await getLastMessage(jid)   // implementasi sendiri
-
 // Archive / unarchive
 await sock.archiveChat(jid, lastMsg)
 await sock.unarchiveChat(jid, lastMsg)
@@ -689,32 +596,23 @@ await sock.pinChat(jid)
 await sock.unpinChat(jid)
 
 // Mute / unmute
-await sock.muteJid(jid)                      // mute 8 jam (default)
-await sock.muteJid(jid, 24 * 60 * 60 * 1000) // mute 24 jam
+await sock.muteJid(jid)                          // mute 8 jam
+await sock.muteJid(jid, 24 * 60 * 60 * 1000)    // mute 24 jam
 await sock.unmuteJid(jid)
 
 // Tandai baca / belum baca
 await sock.markAsRead([m.key])
+await sock.sendSeen(jid)                          // alias markAsRead
 await sock.markAsUnread(jid, lastMsg)
+
+// Hapus & bersihkan
+await sock.deleteChat(jid)
+await sock.clearChat(jid)
 
 // Block / unblock
 await sock.blockUser(jid)
 await sock.unblockUser(jid)
-```
-
-Raw via `chatModify`:
-
-```js
-// Hapus chat
-await sock.chatModify({
-  delete: true,
-  lastMessages: [{ key: lastMsg.key, messageTimestamp: lastMsg.messageTimestamp }]
-}, jid)
-
-// Star pesan
-await sock.chatModify({
-  star: { messages: [{ id: 'MSG_ID', fromMe: true }], star: true }
-}, jid)
+await sock.fetchBlocklist()                       // ambil daftar yang diblokir
 ```
 
 ---
@@ -722,19 +620,155 @@ await sock.chatModify({
 ## Disappearing Messages
 
 ```js
-// Aktifkan di chat/group
-await sock.sendMessage(jid, { disappearingMessagesInChat: WA_DEFAULT_EPHEMERAL })
+// Aktifkan di chat
+await sock.sendDisappearingToggle(jid, 86400)     // 24 jam
+await sock.setGroupDisappearing(jid, 604800)      // 7 hari di group
+await sock.setGroupDisappearing(jid, 0)           // matikan
 
-// Set di group langsung
-await sock.setGroupDisappearing(jid, 86400)   // 24 jam
-await sock.setGroupDisappearing(jid, 604800)  // 7 hari
-await sock.setGroupDisappearing(jid, 7776000) // 90 hari
+// Kirim satu pesan sebagai ephemeral
+await sock.sendDisappearingMessage(jid, { text: 'Pesan ini akan hilang' }, 86400)
 
-// Kirim sebagai ephemeral
-await sock.sendDisappearingMessage(jid, { text: 'poof' }, 86400)
+// Set default disappearing mode
+await sock.setDefaultDisappearing(86400)
+```
 
-// Matikan
-await sock.sendMessage(jid, { disappearingMessagesInChat: false })
+---
+
+## Groups
+
+```js
+// Buat group baru
+const group = await sock.groupCreate('Nama Group', ['628xxx@s.whatsapp.net'])
+console.log('Group ID:', group.gid)
+
+// Tambah / hapus / promote / demote member
+await sock.groupParticipantsUpdate(jid, ['628xxx@s.whatsapp.net'], 'add')
+await sock.groupParticipantsUpdate(jid, ['628xxx@s.whatsapp.net'], 'remove')
+await sock.groupParticipantsUpdate(jid, ['628xxx@s.whatsapp.net'], 'promote')
+await sock.groupParticipantsUpdate(jid, ['628xxx@s.whatsapp.net'], 'demote')
+
+// Bulk action (auto chunk per 5 + delay)
+await sock.bulkGroupAction(jid, [jid1, jid2, jid3], 'remove')
+
+// Update info group
+await sock.groupUpdateSubject(jid, 'Nama Group Baru')
+await sock.groupUpdateDescription(jid, 'Deskripsi baru')
+await sock.updateGroupName(jid, 'Nama Group Baru')           // alias
+await sock.updateGroupDescription(jid, 'Deskripsi baru')    // alias
+await sock.updateGroupProfilePicture(jid, buffer)            // ganti foto group
+
+// Setting group
+await sock.groupSettingUpdate(jid, 'announcement')           // hanya admin yang bisa kirim
+await sock.groupSettingUpdate(jid, 'not_announcement')       // semua bisa kirim
+await sock.updateGroupSetting(jid, 'locked')                 // alias
+await sock.updateGroupSetting(jid, 'unlocked')
+
+// Invite link
+const code = await sock.groupInviteCode(jid)
+const link = await sock.getGroupInviteLink(jid)   // return URL lengkap
+await sock.groupRevokeInvite(jid)                 // atau: revokeGroupInvite(jid)
+await sock.groupAcceptInvite(code)                // join (tanpa URL prefix)
+await sock.joinGroupViaLink('https://chat.whatsapp.com/...')  // join via URL
+
+// Info & metadata
+const meta = await sock.groupMetadata(jid)
+const all  = await sock.fetchAllGroups()          // semua group yang diikuti
+
+// Admin utilities
+const admins  = await sock.getGroupAdmins(jid)
+const isAdmin = await sock.isGroupAdmin(jid, '628xxx@s.whatsapp.net')
+const members = await sock.getGroupParticipants(jid)
+await sock.sendToAdminsOnly(jid, 'Pesan khusus admin')
+await sock.sendAdminInvite(jid, targetJid)        // undang jadi admin
+
+// Join approval
+await sock.setGroupJoinApproval(jid, true)        // nyalakan approval
+const requests = await sock.getGroupJoinRequests(jid)
+await sock.approveGroupJoinRequest(jid, ['628xxx@s.whatsapp.net'])
+await sock.rejectGroupJoinRequest(jid, ['628xxx@s.whatsapp.net'])
+
+// Member add mode
+await sock.setGroupMemberAddMode(jid, 'all_member_add')  // semua bisa add
+await sock.setGroupMemberAddMode(jid, 'admin_add')       // hanya admin
+
+// Leave
+await sock.leaveGroup(jid)
+```
+
+---
+
+## Interaktif: Buttons, List, Template ⚡
+
+```js
+// Pesan dengan tombol
+await sock.sendButtonsMessage(jid, {
+  text: 'Pilih salah satu:',
+  buttons: [
+    { buttonId: 'id1', buttonText: { displayText: 'Opsi A' }, type: 1 },
+    { buttonId: 'id2', buttonText: { displayText: 'Opsi B' }, type: 1 }
+  ],
+  headerType: 1
+})
+
+// Gambar + tombol
+await sock.sendImageWithButtons(jid, buffer, 'Caption', [
+  { buttonId: 'confirm', buttonText: { displayText: '✅ Konfirmasi' }, type: 1 },
+  { buttonId: 'cancel',  buttonText: { displayText: '❌ Batal' },     type: 1 }
+])
+
+// Video + tombol
+await sock.sendVideoWithButtons(jid, videoBuffer, 'Tonton dulu', [
+  { buttonId: 'share', buttonText: { displayText: '📤 Share' }, type: 1 }
+])
+
+// Dokumen + tombol
+await sock.sendDocumentWithButtons(jid, pdfBuffer, 'laporan.pdf', 'application/pdf', 'Ini laporan nya', [
+  { buttonId: 'download', buttonText: { displayText: '⬇️ Download' }, type: 1 }
+])
+
+// List / menu
+await sock.sendListMessage(jid, {
+  text: 'Pilih menu:',
+  footer: 'n4lyx bot',
+  title: 'Main Menu',
+  buttonText: 'Buka Menu',
+  sections: [
+    {
+      title: 'Kategori 1',
+      rows: [
+        { title: 'Info', rowId: 'info', description: 'Lihat informasi' },
+        { title: 'Help', rowId: 'help', description: 'Bantuan' }
+      ]
+    }
+  ]
+})
+
+// Template message
+await sock.sendTemplateMessage(jid, {
+  text: 'Hai! Ada yang bisa dibantu?',
+  footer: 'n4lyx',
+  templateButtons: [
+    { index: 1, urlButton: { displayText: '🌐 Website', url: 'https://example.com' } },
+    { index: 2, callButton: { displayText: '📞 Telepon', phoneNumber: '+62812xxxxxxx' } },
+    { index: 3, quickReplyButton: { displayText: '💬 Chat', id: 'chat' } }
+  ]
+})
+```
+
+---
+
+## Newsletter ⚡
+
+```js
+// Info channel / newsletter
+const info = await sock.getNewsletterInfo(newsletterJid)
+
+// Kirim pesan ke newsletter
+await sock.sendNewsletterMessage(newsletterJid, { text: 'Update terbaru!' })
+await sock.sendNewsletterMessage(newsletterJid, { image: buffer, caption: 'Foto' })
+
+// Reaksi di newsletter
+await sock.sendNewsletterReaction(newsletterJid, messageId, '🔥')
 ```
 
 ---
@@ -747,76 +781,49 @@ const { createWriteStream } = require('fs')
 
 sock.ev.on('messages.upsert', async ({ messages: [m] }) => {
   if (!m.message) return
-  if (getContentType(m) !== 'imageMessage') return
+  const type = getContentType(m)
 
-  const stream = await downloadMediaMessage(m, 'stream', {}, {
-    logger,
-    reuploadRequest: sock.updateMediaMessage
-  })
-
-  stream.pipe(createWriteStream('./download.jpg'))
+  if (type === 'imageMessage') {
+    const stream = await downloadMediaMessage(m, 'stream', {}, {
+      logger,
+      reuploadRequest: sock.updateMediaMessage
+    })
+    stream.pipe(createWriteStream('./download.jpg'))
+  }
 })
 ```
 
-Re-upload media yang expired:
+Re-upload media yang expired (link kedaluwarsa):
 
 ```js
-await sock.updateMediaMessage(msg)
+const refreshed = await sock.updateMediaMessage(msg)
 ```
 
 ---
 
-## Groups
+## Poll — Dekripsi Vote
+
+Poll dienkripsi by default. Dekripsi harus dilakukan di event `messages.update`.
 
 ```js
-// Buat group
-const group = await sock.groupCreate('Nama Group', ['628xxx@s.whatsapp.net'])
-console.log('Created:', group.gid)
+const { getAggregateVotesInPollMessage } = require('n4lyx')
 
-// Add / remove / promote / demote
-await sock.groupParticipantsUpdate(jid, ['628xxx@s.whatsapp.net'], 'add')
-// 'add' | 'remove' | 'promote' | 'demote'
+sock.ev.on('messages.update', async (events) => {
+  for (const { key, update } of events) {
+    if (!update.pollUpdates) continue
 
-// Bulk action (auto chunk per 5, ada delay)
-await sock.bulkGroupAction(jid, [jid1, jid2, jid3, ...], 'remove')
+    const creation = await getMessage(key)  // ambil dari DB/store kamu
+    if (!creation) continue
 
-// Update nama / deskripsi
-await sock.groupUpdateSubject(jid, 'Nama Baru')
-await sock.groupUpdateDescription(jid, 'Deskripsi baru')
+    const result = getAggregateVotesInPollMessage({
+      message: creation,
+      pollUpdates: update.pollUpdates
+    })
 
-// Setting
-await sock.groupSettingUpdate(jid, 'announcement')     // hanya admin yang bisa kirim
-await sock.groupSettingUpdate(jid, 'not_announcement') // semua bisa kirim
-await sock.groupSettingUpdate(jid, 'locked')           // hanya admin yang bisa edit info
-await sock.groupSettingUpdate(jid, 'unlocked')         // semua bisa edit info
-
-// Invite link
-const code = await sock.groupInviteCode(jid)           // https://chat.whatsapp.com/${code}
-await sock.groupRevokeInvite(jid)
-await sock.groupAcceptInvite(code)                     // join via code (tanpa URL prefix)
-
-// Metadata
-const meta = await sock.groupMetadata(jid)
-
-// Admin utilities
-const admins = await sock.getGroupAdmins(jid)
-const isAdmin = await sock.isGroupAdmin(jid, '628xxx@s.whatsapp.net')
-await sock.sendToAdminsOnly(jid, 'khusus admin')
-
-// Join approval
-await sock.groupJoinApprovalMode(jid, 'on')
-const requests = await sock.groupRequestParticipantsList(jid)
-await sock.groupRequestParticipantsUpdate(jid, ['628xxx@s.whatsapp.net'], 'approve')
-
-// Add mode
-await sock.groupMemberAddMode(jid, 'all_member_add')  // semua bisa add
-await sock.groupMemberAddMode(jid, 'admin_add')        // hanya admin
-
-// Leave
-await sock.groupLeave(jid)
-
-// Semua group yang diikuti
-const all = await sock.groupFetchAllParticipating()
+    console.log('Hasil vote:', result)
+    // result: [{ name: 'JavaScript', voters: ['628xxx@s.whatsapp.net', ...] }, ...]
+  }
+})
 ```
 
 ---
@@ -824,46 +831,43 @@ const all = await sock.groupFetchAllParticipating()
 ## Presence
 
 ```js
-// Mark as read
-await sock.readMessages([m.key])
-
-// Kirim presence
+// Kirim indikator presence
 await sock.sendPresenceUpdate('composing', jid)   // lagi ngetik
-await sock.sendPresenceUpdate('recording', jid)   // lagi rekam
-await sock.sendPresenceUpdate('paused', jid)       // berhenti
-await sock.sendPresenceUpdate('available', jid)    // online
-await sock.sendPresenceUpdate('unavailable', jid)  // offline
+await sock.sendPresenceUpdate('recording', jid)   // lagi rekam audio
+await sock.sendPresenceUpdate('paused', jid)      // berhenti ngetik
+await sock.sendPresenceUpdate('available', jid)   // online
+await sock.sendPresenceUpdate('unavailable', jid) // offline
 
-// Subscribe presence kontak
-sock.ev.on('presence.update', console.log)
+// Subscribe presence orang lain
 await sock.presenceSubscribe(jid)
+sock.ev.on('presence.update', ({ id, presences }) => {
+  console.log(id, presences) // lihat siapa yang lagi online
+})
 ```
 
 ---
 
-## Query
+## Query & Info
 
 ```js
-// Cek nomor di WA
-const [result] = await sock.onWhatsApp('628xxx@s.whatsapp.net')
-if (result.exists) console.log(result.jid)
-
-// Shorthand — input bisa nomor atau JID
+// Cek apakah nomor terdaftar di WA
 const info = await sock.isOnWhatsApp('628xxxxxxxxx')
 // → { exists: true, jid: '628xxx@s.whatsapp.net' }
 
-// Status teks
-const status = await sock.fetchStatus(jid)
+// Info lengkap kontak
+const contact = await sock.getContactInfo(jid)
 
-// Foto profil (safe, return null kalau gagal)
-const pic = await sock.getProfilePicture(jid)            // low res
-const picHD = await sock.getProfilePicture(jid, true)    // high res
+// Status teks (safe — return null kalau gagal)
+const status = await sock.getUserStatus(jid)
+
+// Foto profil (safe — return null kalau gagal)
+const pic   = await sock.getProfilePicture(jid)        // low res
+const picHD = await sock.getProfilePicture(jid, true)  // high res
 
 // Business profile
 const biz = await sock.getBusinessProfile(jid)
 
-// Message history (max 50 per call)
-const oldest = await getOldestMessage(jid)
+// Riwayat pesan (max 50 per call)
 await sock.fetchMessageHistory(50, oldest.key, oldest.messageTimestamp)
 // masuk via event: messaging.history-set
 ```
@@ -873,14 +877,7 @@ await sock.fetchMessageHistory(50, oldest.key, oldest.messageTimestamp)
 ## Privacy
 
 ```js
-// Block / unblock
-await sock.updateBlockStatus(jid, 'block')
-await sock.updateBlockStatus(jid, 'unblock')
-
-// Ambil blocklist
-await sock.fetchBlocklist()
-
-// Update privacy settings
+// Update semua privacy settings
 // nilai: 'all' | 'contacts' | 'contact_blacklist' | 'none'
 await sock.updateLastSeenPrivacy('contacts')
 await sock.updateProfilePicturePrivacy('contacts')
@@ -898,7 +895,7 @@ await sock.updateDefaultDisappearingMode(86400)
 ## Profile
 
 ```js
-await sock.updateProfileStatus('lagi sibuk')
+await sock.updateProfileStatus('Sedang coding...')
 await sock.updateProfileName('Nama Baru')
 await sock.updateProfilePicture(jid, { url: './foto.jpg' })
 await sock.removeProfilePicture(jid)
@@ -909,39 +906,30 @@ await sock.removeProfilePicture(jid)
 ## Calls
 
 ```js
-// Reject incoming call
+// Tolak incoming call
 sock.ev.on('call', async ([call]) => {
   await sock.rejectCall(call.id, call.from)
 })
 
-// Auto-reject semua call
+// Auto-reject semua call (aktifkan sekali saat startup)
 sock.rejectAllCalls()
 ```
 
 ---
 
-## Poll Decryption
+## In-Memory Store
 
-Poll dienkripsi by default. Dekripsinya di event `messages.update`.
+Untuk development / testing. **Jangan dipakai di production.**
 
 ```js
-const { getAggregateVotesInPollMessage } = require('n4lyx')
+const { makeInMemoryStore } = require('n4lyx')
 
-sock.ev.on('messages.update', async (events) => {
-  for (const { key, update } of events) {
-    if (!update.pollUpdates) continue
+const store = makeInMemoryStore({})
+store.readFromFile('./store.json')
+setInterval(() => store.writeToFile('./store.json'), 10_000)
 
-    const creation = await getMessage(key)  // implementasi sendiri
-    if (!creation) continue
-
-    const result = getAggregateVotesInPollMessage({
-      message: creation,
-      pollUpdates: update.pollUpdates
-    })
-
-    console.log(result)
-  }
-})
+const sock = makeWASocket({})
+store.bind(sock.ev)
 ```
 
 ---
@@ -949,13 +937,15 @@ sock.ev.on('messages.update', async (events) => {
 ## WebSocket Low-Level
 
 ```js
+// Listen ke protokol WA secara langsung
 sock.ws.on('CB:edge_routing', (node) => { })
 sock.ws.on('CB:edge_routing,id:abcd', (node) => { })
 ```
 
-Debug mode (log semua WA protocol frame):
+Debug mode — log semua WA protocol frame:
 
 ```js
+const P = require('pino')
 const sock = makeWASocket({ logger: P({ level: 'debug' }) })
 ```
 
@@ -968,7 +958,7 @@ const sock = makeWASocket({ logger: P({ level: 'debug' }) })
 | User | `628XXXXXXXXX@s.whatsapp.net` |
 | Group | `123456789-123456@g.us` |
 | Broadcast list | `[timestamp]@broadcast` |
-| Story/Status | `status@broadcast` |
+| Story / Status | `status@broadcast` |
 
 ---
 
@@ -977,7 +967,7 @@ const sock = makeWASocket({ logger: P({ level: 'debug' }) })
 | Fungsi | Kegunaan |
 |---|---|
 | `getContentType(msg)` | Ambil tipe konten dari sebuah pesan |
-| `getDevice(msg)` | Info device pengirim |
+| `getDevice(msg)` | Info device pengirim pesan |
 | `makeCacheableSignalKeyStore` | Percepat operasi auth key store |
 | `downloadContentFromMessage` | Download raw content dari pesan |
 | `fetchLatestN4lyxVersion` | Ambil versi terbaru n4lyx dari npm |
@@ -985,83 +975,203 @@ const sock = makeWASocket({ logger: P({ level: 'debug' }) })
 
 ---
 
-## Semua Fitur Eksklusif n4lyx
-
-| Method | Keterangan |
-|---|---|
-| `tagAll` di `sendMessage` | Auto-mention semua/admin/non-admin di group |
-| `sock.groupTagAll(jid, scope)` | Ambil list JID participant by scope |
-| `sock.sendTagAll(jid, text, scope?)` | Tag + kirim pesan sekaligus |
-| `sock.groupStatusV2(jid, content)` | Post story di group (text/image/video/audio/sticker) |
-| `sock.sendStatus(content, jidList?)` | Post story pribadi ke status@broadcast |
-| `sock.sendImage(jid, image, caption?)` | Shorthand kirim gambar |
-| `sock.sendVideo(jid, video, caption?)` | Shorthand kirim video |
-| `sock.sendAudio(jid, audio, isPtt?)` | Shorthand kirim audio / PTT |
-| `sock.sendDocument(jid, doc, fileName, ...)` | Shorthand kirim dokumen |
-| `sock.sendViewOnce(jid, content)` | View-once media |
-| `sock.sendPTV(jid, video)` | Circular video note |
-| `sock.sendGIF(jid, video, caption?)` | Kirim GIF animasi |
-| `sock.sendAlbum(jid, items)` | Album swipeable (max 10) |
-| `sock.sendStickerFromUrl(jid, url)` | Sticker dari URL langsung |
-| `sock.sendStickerWithMetadata(jid, sticker, meta)` | Sticker + pack info |
-| `sock.sendStickerPack(jid, stickers, packName, ...)` | Kirim banyak sticker (max 30) |
-| `sock.sendPoll(jid, question, choices)` | Buat poll |
-| `sock.sendEvent(jid, eventData)` | Kirim WhatsApp Event |
-| `sock.sendScheduledCall(jid, title, time)` | Jadwalkan panggilan |
-| `sock.sendLocation(jid, lat, lng, name?)` | Kirim lokasi statis |
-| `sock.sendLiveLocation(jid, lat, lng, ...)` | Kirim live location |
-| `sock.sendContact(jid, contacts)` | Kartu kontak (auto-vCard) |
-| `sock.sendGroupInvite(jid, groupJid)` | Kirim invite group sebagai card |
-| `sock.sendReply(jid, text, quotedMsg)` | Reply teks cepat |
-| `sock.sendMediaReply(jid, content, quotedMsg)` | Reply dengan media |
-| `sock.sendQuotedText(jid, text, quotedMsg, mentions?)` | Reply + mention |
-| `sock.sendTextWithMentions(jid, text, jids[])` | Teks + mention array |
-| `sock.sendTyping(jid, duration?, type?)` | Typing indicator + auto stop |
-| `sock.sendWithTyping(jid, content, ...)` | Kirim pesan pakai typing dulu |
-| `sock.broadcastMessage(jids[], content)` | Kirim ke banyak JID |
-| `sock.sendMultipleMessages(jid, contents[])` | Kirim array pesan ke 1 JID |
-| `sock.pinMessage(jid, key, duration?)` | Pin/unpin pesan |
-| `sock.keepMessage(jid, key, keep?)` | Bookmark / unbookmark pesan |
-| `sock.editMessage(jid, key, newText)` | Edit pesan yang sudah terkirim |
-| `sock.deleteMessage(jid, key)` | Hapus pesan untuk semua |
-| `sock.reactMessage(jid, key, emoji)` | React / hapus reaksi |
-| `sock.forwardMessage(jid, msg, force?)` | Forward pesan |
-| `sock.muteJid(jid, duration?)` | Mute chat |
-| `sock.unmuteJid(jid)` | Unmute chat |
-| `sock.archiveChat(jid, lastMsg)` | Arsip chat |
-| `sock.unarchiveChat(jid, lastMsg)` | Buka arsip |
-| `sock.pinChat(jid)` | Pin chat |
-| `sock.unpinChat(jid)` | Unpin chat |
-| `sock.markAsRead(keys[])` | Tandai baca |
-| `sock.markAsUnread(jid, lastMsg)` | Tandai belum baca |
-| `sock.blockUser(jid)` | Blokir user |
-| `sock.unblockUser(jid)` | Buka blokir |
-| `sock.getProfilePicture(jid, highRes?)` | Foto profil (safe, null kalau gagal) |
-| `sock.getUserStatus(jid)` | Status teks user (safe, null kalau gagal) |
-| `sock.isOnWhatsApp(jidOrNumber)` | Cek nomor — input fleksibel |
-| `sock.sendDisappearingMessage(jid, content, exp)` | Kirim pesan ephemeral |
-| `sock.setGroupDisappearing(jid, expiration)` | Set disappearing di group |
-| `sock.getGroupAdmins(jid)` | Daftar admin group |
-| `sock.isGroupAdmin(jid, userJid)` | Cek apakah user adalah admin |
-| `sock.sendToAdminsOnly(jid, content)` | Kirim + mention admin saja |
-| `sock.bulkGroupAction(jid, participants[], action)` | add/remove/promote/demote banyak user |
-| `sock.rejectAllCalls()` | Auto-reject semua incoming call |
-
----
-
 ## Optional Dependencies
 
+Install sesuai kebutuhan — nggak wajib semua.
+
 ```bash
-npm i jimp              # atau sharp — untuk generate thumbnail
-npm i link-preview-js   # link preview di pesan teks
+npm i jimp              # thumbnail generator (bisa juga pakai sharp)
+npm i link-preview-js   # link preview otomatis di pesan teks
 npm i qrcode-terminal   # render QR code di terminal
 ```
 
-Thumbnail video butuh `ffmpeg` di sistem:
+Konversi audio ke format yang kompatibel (butuh `ffmpeg` di sistem):
 
 ```bash
 ffmpeg -i input.mp4 -avoid_negative_ts make_zero -ac 1 output.ogg
 ```
+
+---
+
+## Semua Fitur n4lyx
+
+<details>
+<summary><strong>Lihat semua method (klik untuk expand)</strong></summary>
+
+### Pesan
+
+| Method | Keterangan |
+|---|---|
+| `sendImage` | Kirim gambar |
+| `sendVideo` | Kirim video |
+| `sendAudio` | Kirim audio / PTT |
+| `sendAudioPTT` | Alias PTT |
+| `sendVoiceNote` | Alias voice note |
+| `sendDocument` | Kirim dokumen |
+| `sendGIF` | Kirim GIF animasi |
+| `sendPTV` | Circular video note |
+| `sendViewOnce` | View-once media |
+| `sendSticker` / `sendStickerMessage` | Kirim sticker |
+| `sendStickerFromBuffer` | Sticker dari Buffer |
+| `sendStickerFromUrl` | Sticker dari URL |
+| `sendStickerWithMetadata` | Sticker + pack info |
+| `sendStickerPack` | Kirim banyak sticker |
+| `sendAlbum` | Album swipeable |
+| `sendPoll` | Buat poll |
+| `sendEvent` | WhatsApp Event |
+| `sendScheduledCall` | Jadwalkan panggilan |
+| `sendLocation` | Lokasi statis |
+| `sendLiveLocation` | Live location |
+| `sendContact` | Kartu kontak |
+| `sendGroupInvite` | Invite group sebagai card |
+| `sendLinkPreview` | Kirim dengan link preview |
+| `sendProductMessage` | Kirim produk (katalog) |
+
+### Reply & Mention
+
+| Method | Keterangan |
+|---|---|
+| `sendReply` | Reply teks cepat |
+| `sendMediaReply` | Reply dengan media |
+| `sendQuotedText` | Reply + mention |
+| `sendTextWithMentions` | Teks + mention array |
+| `sendTagAll` | Tag all shorthand |
+| `sendMentionAll` | Mention semua member |
+| `sendWithQuotedFake` | Kirim dengan fake quote |
+| `forwardWithComment` | Forward + komentar |
+| `sendWithMentionAndReply` | Reply + mention sekaligus |
+| `tagAll` di `sendMessage` | Auto-mention all/admin/non-admin |
+| `groupTagAll` | Ambil list JID by scope |
+
+### Interaktif
+
+| Method | Keterangan |
+|---|---|
+| `sendButtonsMessage` | Pesan dengan tombol |
+| `sendListMessage` | Pesan dengan menu list |
+| `sendTemplateMessage` | Template message |
+| `sendInteractiveMessage` | Interactive message raw |
+| `sendHighlyStructuredMessage` | Highly structured message |
+| `sendImageWithButtons` | Gambar + tombol |
+| `sendVideoWithButtons` | Video + tombol |
+| `sendDocumentWithButtons` | Dokumen + tombol |
+
+### Newsletter
+
+| Method | Keterangan |
+|---|---|
+| `sendNewsletterMessage` | Kirim ke newsletter |
+| `sendNewsletterReaction` | Reaksi di newsletter |
+| `getNewsletterInfo` | Info channel |
+
+### Typing & Presence
+
+| Method | Keterangan |
+|---|---|
+| `sendTyping` | Typing indicator + auto stop |
+| `sendWithTyping` | Kirim pesan pakai typing dulu |
+| `sendSeen` | Tandai pesan sudah dibaca |
+
+### Broadcast
+
+| Method | Keterangan |
+|---|---|
+| `broadcastMessage` | Kirim ke banyak JID |
+| `broadcastToGroups` | Kirim ke banyak group |
+| `sendMultipleMessages` | Kirim array pesan ke 1 JID |
+
+### Edit & Aksi Pesan
+
+| Method | Keterangan |
+|---|---|
+| `editMessage` | Edit pesan terkirim |
+| `deleteMessage` | Hapus untuk semua |
+| `pinMessage` | Pin / unpin pesan |
+| `keepMessage` | Bookmark pesan |
+| `starMessage` / `unstarMessage` | Bintang pesan |
+| `reactMessage` | React / hapus reaksi |
+| `forwardMessage` | Forward pesan |
+
+### Chat Management
+
+| Method | Keterangan |
+|---|---|
+| `archiveChat` / `unarchiveChat` | Arsip chat |
+| `pinChat` / `unpinChat` | Pin chat |
+| `muteJid` / `unmuteJid` | Mute / unmute chat |
+| `markAsRead` / `markAsUnread` | Tandai baca |
+| `deleteChat` / `clearChat` | Hapus / kosongkan chat |
+| `blockUser` / `unblockUser` | Blokir user |
+| `fetchBlocklist` | Daftar yang diblokir |
+
+### Group
+
+| Method | Keterangan |
+|---|---|
+| `groupCreate` | Buat group |
+| `groupParticipantsUpdate` | add/remove/promote/demote |
+| `bulkGroupAction` | Bulk action member |
+| `groupUpdateSubject` / `updateGroupName` | Ganti nama |
+| `groupUpdateDescription` / `updateGroupDescription` | Ganti deskripsi |
+| `updateGroupProfilePicture` | Ganti foto group |
+| `updateGroupSetting` / `groupSettingUpdate` | Setting group |
+| `getGroupInviteLink` / `groupInviteCode` | Invite link |
+| `revokeGroupInvite` / `groupRevokeInvite` | Revoke link |
+| `joinGroupViaLink` / `groupAcceptInvite` | Join group |
+| `groupMetadata` | Metadata group |
+| `fetchAllGroups` | Semua group |
+| `getGroupAdmins` | Daftar admin |
+| `isGroupAdmin` | Cek apakah admin |
+| `getGroupParticipants` | Daftar member |
+| `sendToAdminsOnly` | Pesan + mention admin |
+| `sendAdminInvite` | Undang jadi admin |
+| `setGroupJoinApproval` | Nyalakan approval join |
+| `getGroupJoinRequests` | Daftar request join |
+| `approveGroupJoinRequest` | Approve request |
+| `rejectGroupJoinRequest` | Reject request |
+| `setGroupMemberAddMode` | Siapa yang bisa add member |
+| `groupLeave` / `leaveGroup` | Leave group |
+| `setGroupDisappearing` | Disappearing messages di group |
+
+### Disappearing
+
+| Method | Keterangan |
+|---|---|
+| `sendDisappearingMessage` | Kirim pesan ephemeral |
+| `sendDisappearingToggle` | Nyalakan/matikan disappearing |
+| `setDefaultDisappearing` | Default disappearing mode |
+
+### Status / Story
+
+| Method | Keterangan |
+|---|---|
+| `sendStatus` | Post story pribadi |
+| `groupStatusV2` | Post story di group ⚡ |
+
+### Query & Info
+
+| Method | Keterangan |
+|---|---|
+| `isOnWhatsApp` | Cek nomor (input fleksibel) |
+| `getContactInfo` | Info kontak |
+| `getUserStatus` | Status teks (safe) |
+| `getProfilePicture` | Foto profil (safe) |
+| `getBusinessProfile` | Business profile |
+| `fetchMessageHistory` | Riwayat pesan |
+
+### Privacy
+
+| Method | Keterangan |
+|---|---|
+| `updateLastSeenPrivacy` | Privacy last seen |
+| `updateProfilePicturePrivacy` | Privacy foto profil |
+| `updateStatusPrivacy` | Privacy status |
+| `updateReadReceiptsPrivacy` | Privacy read receipt |
+| `updateGroupsAddPrivacy` | Privacy add ke group |
+| `updateOnlinePrivacy` | Privacy online |
+| `updateDefaultDisappearingMode` | Default disappearing |
+
+</details>
 
 ---
 
@@ -1072,5 +1182,5 @@ MIT — lihat [LICENSE](LICENSE).
 ---
 
 <div align="center">
-<sub>n4lyx — built by N4tzzOfficial | Channel: https://whatsapp.com/channel/0029VbAVYIx5PO0z9LqImz3U</sub>
+<sub>built by N4tzzOfficial · <a href="https://whatsapp.com/channel/0029VbAVYIx5PO0z9LqImz3U">Channel WhatsApp</a> · <a href="https://npmjs.com/package/n4lyx">npm</a></sub>
 </div>
