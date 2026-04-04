@@ -22,12 +22,54 @@
 
 ## Apa ini?
 
-**n4lyx** adalah WhatsApp Web API library untuk Node.js — multi-device, proper `@lid → @pn` resolution, dan punya fitur-fitur eksklusif yang nggak ada di library lain.
+**n4lyx** adalah WhatsApp Web API library untuk Node.js yang fokus pada **stabilitas, efisiensi, dan kemudahan penggunaan**.
 
-- ⚡ **Tag all** — mention semua member/admin/non-admin otomatis
-- 📸 **Group Status V2** — post story langsung ke group
-- 🎯 **Shorthand methods** — nggak perlu susun object manual
-- 🔧 **Bug-fixed** — semua edge case umum udah dipatch
+Dirancang untuk **production-ready**: minim crash, tahan edge-case, dan tetap ringan tanpa bloat.
+
+---
+
+## ✨ **Fitur Utama**
+
+- ⚡ **Tag All System** — mention semua / admin / non-admin otomatis  
+- 📸 **Group Status V2** — kirim story langsung ke group  
+- 🎯 **Shorthand Methods** — kirim pesan tanpa ribet object manual  
+- 🔄 **Auto-safe Handling** — banyak method sudah null-safe & anti crash  
+- 🧠 **Smart Internal Handling** — cache, retry, dan sync lebih stabil  
+
+---
+
+## ⚠️ **Stability & Fixes (Latest Update)**
+
+Versi terbaru membawa peningkatan besar pada stabilitas sistem:
+
+- ✅ **Profile Picture Safe Fetch**  
+  Tidak crash jika error (404, *not-authorized*, dll). Akan mengembalikan `null`.
+
+- ✅ **Message Handling Stabil**  
+  Dedup cache dan proses *upsert* sudah dibungkus `try/catch` untuk mencegah crash.
+
+- ✅ **Sync State Lebih Robust**  
+  Transisi state lebih aman dengan handling timeout yang tetap berjalan normal.
+
+- ✅ **Group Metadata Safe Guard**  
+  Tidak menyebabkan error jika data kosong atau tidak valid.
+
+- ✅ **Newsletter Parsing Aman**  
+  Semua proses parsing dilindungi, tidak akan crash jika terjadi kegagalan.
+
+- ✅ **Interactive & Button Normalization**  
+  Mendukung berbagai format tombol (`buttonId`, `id`, `text`, dll).
+
+- ✅ **WhatsApp Check Konsisten**  
+  Method seperti `isOnWhatsApp`, `onWhatsApp`, dll selalu mengembalikan array (tidak `undefined`).
+
+- ✅ **Dependency Optional**  
+  Dependency seperti `chalk` bersifat opsional dan memiliki fallback otomatis.
+
+- ✅ **Broadcast & Group Handling Fix**  
+  Menggunakan method internal yang lebih akurat dan stabil untuk pengiriman massal dan pengelolaan group.
+
+---
 
 > **Disclaimer:** Bukan afiliasi dengan WhatsApp Inc. Jangan spam. Jangan abuse. Konsekuensi akun banned adalah tanggung jawab kamu sendiri.
 
@@ -1182,5 +1224,5 @@ MIT — lihat [LICENSE](LICENSE).
 ---
 
 <div align="center">
-<sub>built by N4tzzOfficial · <a href="https://whatsapp.com/channel/0029VbAVYIx5PO0z9LqImz3U">Channel WhatsApp</a> · <a href="https://npmjs.com/package/n4lyx">npm</a></sub>
+<sub>Built with stability in mind · N4tzzOfficial</sub>
 </div>
